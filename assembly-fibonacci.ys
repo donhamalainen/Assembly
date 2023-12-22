@@ -1,0 +1,273 @@
+# TKJ-harjoitustyö 2023 Fibonacci
+# Don Hämäläinen, 2206376, dhamalai21@student.oulu.fi
+#
+# Pohdinta:
+# - Ajonaikaisten käskyjen määrä: xxxx
+
+# - Yritin optimoida ohjelmaa, mutta en oikein saanut tehtyä sitä. 
+#   luultavasti saanut optimoinnin tehtyä XOR komentoa hyödyntäen.
+#   Optimoin kuitenkin 1 << 16 tekemällä laskennan rdx*rdx, sekä vähentämällä laskijaa aina 2.
+#   Tämä on kovakoodattu, mutta se vähentää käskyjen määrää tässä aliohjelmassa puolella.
+
+# - Koin ongelman pinon käytössä ja se oli kun tietyn pos xxxx alla oli liikaa
+#   aliohjelmia ja se että tulokset vaihtelivat
+
+
+# Ohjelmassa tulisi olla seuraavat ominaisuudet:
+# Ohjelmaa alkaa main:-lohkosta eikä sitä ennen ole mitään alustuksia.
+# Ohjelma lukee tarkistettavan lukujonon alkaen muistipaikasta 0x700.
+# Lukujono alkaa aina vähintään 1:sestä, eli nollaa ei alussa ole.
+# Lukujono päättyy aina nollaan.
+# Ohjelman suoritus pysähtyy ensimmäiseen lukuun, joka ei ole Fibonaccin luku. Tämä luku palautetaan ohjelman lopuksi %rax rekisterissä.
+# Jos kaikki luvut ovat Fibonacin lukuja, palautetaan %rax-rekisterissä luku 0.
+# Tavoitteena on, että ohjelman suoritukseen annetuilla testitapauksilla menisi noin 20-30.000 konekielen käskyä. Tämä ei ole ehdoton vaatimus, katso ohjeet alla.
+
+# Alussa kirjoitetaan lukujono 3,5,8 muistiin
+# Hox! Lovelacen tarkistin tekee tämän automaattisesti
+.pos 0
+   irmovq array,%r11     # muistipaikka 0x700
+   irmovq $3,%r12        # 3
+   rmmovq %r12,(%r11)
+   irmovq $5,%r12        # 5
+   rmmovq %r12,8(%r11)
+   irmovq $8,%r12        # 8
+   rmmovq %r12,16(%r11)
+   irmovq $0,%r12        # loppunolla
+   rmmovq %r12,24(%r11)
+# Tästä alkaa palautettava koodi
+
+main:
+    # Pino alustus
+    irmovq 0x700,%rsp           # Pino-osoitin
+    irmovq 0x700,%rbp           # Pino alkuosoite
+    call clear                  # Tyhjennetään rekisteri
+    
+    # Tarkistetaan että lukujono alkaa aina vähintään 1:sestä.
+    popq %r12                   # Otetaan päällimmäinen rekisteriin r12
+    subq %rdx, %r12             # Tarkistetaan että onko arvo 0
+    je valmis                   # Jos arvo on 0, niin on koko lukujono tarkistettu
+    pushq %r12                  # Laitetaan arvo takaisin
+    # Tarkastellaan että onko luku Fibonacci
+    call isFibonacci
+    pushq %r13
+    pushq %r12
+    # rdx = bit , rcx = res , r12 = num
+    call squareHelper           # while (bit > num)
+    irmovq $0, %r11
+    irmovq $0, %rsi
+    irmovq $0, %rdi
+    call squareRoot             # sqrt(r12)
+    
+    # Tarkistetaan onko kyseessä täydellinen fibonacci
+    popq %r12                   # otetaan tarkasteltava lasku esiin
+    call isPerfectFibonacci 
+    halt                        # Ohjelman lopetus
+    
+
+.pos 0x100
+isFibonacci:                     # 5*x*x (+-) 4
+    irmovq $5 , %r10             # r10 = 5
+    rrmovq %r12, %r9             # r9 = r12 (pino numero)
+    irmovq $1, %r8               # r8 = 1 (laskija)
+    call multiplier              # (5*x*x) Kertolasku
+    
+    # Alustus
+    rrmovq %r12,%r13             # r13 = r12
+    irmovq $4, %r11              # r11 = 4 
+                                 # Tarkistetaan ensin r11 + r9 = (5*x*x) + 4
+    addq %r11, %r12              # r11 + r9
+    subq %r11, %r13              # r11 - r9
+    irmovq $0, %r11              # r11 = 0
+    
+    # Alustetaan bitti (bit = 1 << 16)
+    irmovq $1, %rdx              # rdx = 1 (bit)
+    irmovq $2, %r11              # r11 = 1 (vähentäjä)
+    irmovq $16,%r10              # r10 = 16 (kertoja)
+    preInitialization:           # bit = 1 << 16
+        addq %rdx, %rdx          # rdx *= 2
+        addq %rdx, %rdx          # rdx *= 2
+        subq %r11, %r10          # r10 - r11
+        jne preInitialization
+    irmovq $0, %r11              # r11 = 0
+    ret
+
+.pos 0x200
+isPerfectFibonacci:
+    irmovq $1, %rsi              # rsi = 1 (laskija)
+    rrmovq %rcx, %rdx            # otetaan kertoja
+    perfectMultiplier:
+        subq %rsi,%rcx           # rcx -= rsi
+        jle continue             #
+        addq %rdx, %rbx          #
+        jmp perfectMultiplier
+    continue:
+        addq %rdx, %rbx          #
+        subq %rbx,%r12           # "vertailu"operaatio
+        # je wasFibonacci 
+        # jmp notFibonacci
+    ret
+
+.pos 0x300
+# Käytetään squareHelper sisällä 
+TwoRightBitShift:
+    subq %r11, %rdx                 # rdx - r11
+    jle end
+    addq %r14, %rbx                 # rbx + r14
+    jmp TwoRightBitShift
+
+# Käytetään squareRoot sisällä
+rightShiftWithoutEqual:
+    irmovq $0, %rdi                 # rdi = 0 (reset)
+    rrmovq %rcx, %r8                # r8 (jaettava)
+    irmovq $2, %r11                 # r11 = 2 (vähentäjä & lisääjä)
+    irmovq $1, %r10                 # r10 = 1 (tulos) Voimme asettaa alkuarvoksi 1, koska tiedämme että tänne ei pääse 0.
+    call rightShiftWithoutEqualLoop
+    rrmovq %r10, %rdi
+    addq %rdx, %rdi
+    rrmovq %rdi, %rcx
+    irmovq $0, %rdi,
+    irmovq $0, %r10
+ 
+    # Tarkistetaan onko num 0, jos on niin nollataan bitti
+    rrmovq %r12, %r10
+    subq %r10, %rdi
+    je squartRootFinal
+    jmp squareFinalBitsShift        # Hypätään viimeiseen vaiheeseem bit >>= 2
+    
+    squartRootFinal:
+        irmovq $0, %rdx
+        irmovq $0, %r11
+        irmovq $0, %r14
+        ret
+rightShiftWithoutEqualLoop:
+    subq %r11, %r8                  # r8 - r11 
+    jle end          # lopetetaan joos r8 <= 0
+    addq %r14, %r10                 # r10 + r14
+    jmp rightShiftWithoutEqualLoop
+    
+# Kertolasku
+.pos 0x400
+multiplier:     
+    addq %r9, %r12               
+    subq %r8, %r9                # r9 - r8
+    jne multiplier               # Hyppy
+    secondMultiplier:            # (5*(x*x))  
+        addq %r12, %r9           # 
+        subq %r8, %r10           # r9 - r8
+        jne secondMultiplier     # Hyppy
+        rrmovq %r9, %r12         # r12 = r9
+        irmovq $0, %r8           # r8 (reset)
+        irmovq $0, %r9           # r9 (reset)
+    ret                          # Lopetetaan ohjelma, kun silmukka on valmis
+#
+squartRootFinalOperation:
+    irmovq $4, %r11              # r11 = 4 
+    call TwoRightBitShift
+    addq %r14, %rbx              # rbx += r14 (1)
+    rrmovq %rbx, %rdx            # Siirretään bitin arvo vielä sen omalle paikalle rdx rekisteriin
+    irmovq $0, %rbx              # rbx (reset) 
+    ret
+squartRootEndFinalOperation:
+    irmovq $0, %rdx              # Asetetaan rdx = 0
+    ret
+# Neliöjuuri
+.pos 0x500
+squareRoot:
+    # Tarkistetaan onko bit != 0
+    irmovq $0, %rdi
+    rrmovq %rdx, %rsi
+    subq %rdi, %rsi
+    jle end
+    irmovq $0, %rsi               # rsi = 0 (reset)
+    
+    # Ehdollinen operaatio 
+    rrmovq %rcx, %rbx             # rbx = rcx + rdx
+    addq %rdx, %rbx               # rbx += rdx
+    rrmovq %r12, %rax             # rax = r12
+    subq %rbx, %rax               # Vertailija
+    jl elseOperator              
+    # IF (num >= res + bit)
+    call ifOperator
+    # Tarkistetaan onko num jo 0
+    rrmovq %r12, %r10
+    subq %r10, %rdi
+    je end
+    
+    jmp squareFinalBitsShift
+    # ELSE
+    elseOperator:                       # res >>= 1
+        halt
+        jmp squareFinalBitsShift
+        
+    squareFinalBitsShift:               # bit >>= 2
+        call squartRootFinalOperation
+        jmp squareRoot
+            
+
+ifOperator:
+    # num -= res + bit
+    irmovq $0, %rax                   # rax = 0 (reset)
+    subq %rbx, %r12                   # num -= res + bit;
+    irmovq $0, %rbx
+        
+    # res = (res >> 1) + bit
+    irmovq $2, %r11
+
+    # if res = 0 return 0
+    irmovq $0, %rsi                 # rsi = 0 (vertailua varten)
+    rrmovq %rcx, %rdi               # rdi = res (rcx:n arvo)
+    subq %rsi, %rdi                 # Vähennetään nolla res:stä (rdi)
+    je ifSkipper                    # Jos res on 0, niin ohitetaan rightShiftWithoutEqual ja palautetaan 0
+    call rightShiftWithoutEqual     # Muutoin palautetaan (res >> 1)
+    ret
+    ifSkipper:
+        rrmovq %rdx, %rcx           # Siirretään bitti rcx:n
+        ret
+        
+squareHelper:                           # while (bit > num)
+
+    # Tarkistetaan että onko (bit > num)
+    rrmovq %rdx,%rsi
+    rrmovq %r12,%rdi
+    subq %rsi,%rdi                      # Vertailija
+    jg end
+    irmovq $0,%rdi                      # rdi = 0 (reset)
+    
+    # Alustetaan siirtoa
+    irmovq $4, %r11                     # r11 = 4 (vähentäjä)
+    irmovq $1, %r14                     # r14 = 1 (laskija)
+    
+    # Siirretään bittioperaatiolla oikealle kerran
+    call TwoRightBitShift               # bit >>= 2;
+    addq %r14, %rbx                     # Lisätään (1) jotta saamme oikean tuloksen
+    rrmovq %rbx, %rdx                   # rdx = rbx (tulos)
+    irmovq $0, %rbx                     # rbx = 0
+    jmp squareHelper
+    
+# Nollataan kaikki rekisterit
+.pos 0x600
+clear:
+    irmovq $0, %rax
+    irmovq $0, %rcx
+    irmovq $0, %rdx 
+    irmovq $0, %rbx
+    irmovq $0, %r8
+    irmovq $0, %r9
+    irmovq $0, %r10
+    irmovq $0, %r11
+    irmovq $0, %r12
+    irmovq $0, %r13
+    irmovq $0, %r14
+    ret
+    
+# Lopetus komento
+end:
+    ret
+    
+# Valmis
+valmis:
+    irmovq $0, %rax             # 0 rekisteriin rax
+    halt
+# Pinon määrittelijä
+.pos 0x700
+array:
