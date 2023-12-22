@@ -1,0 +1,37 @@
+# Y86 Assembly -kieltä käyttäen toteutettu 64-bittinen kertolasku
+# Oulun yliopiston tietokonejärjestelmät 2023 -kurssin projektityö
+
+# Tekijä: Don Hämäläinen (2023)
+
+.pos 0
+    irmovq pino,%r11            # muistipaikka 0x700
+    irmovq $3,%r12        # 3
+    rmmovq %r12,(%r11)
+main:
+    # Pino alustus
+    irmovq 0x700,%rsp           # Pino-osoitin
+    irmovq 0x700,%rbp           # Pino alkuosoite
+    
+    # Alustetaan kertolasku laskenta
+    popq %r12                   # Otetaan päällimmäinen pino arvo rekisteriin r12
+    rrmovq %r12, %r13           # rrmovq-käskyllä kopioidaan r12 rekisterin tietoa r13 teksiteriin
+    irmovq $0, %r10             # Alustetaan tulos rekisteri r10 nollaksi
+    irmovq $1, %r8              # Vakio 1.
+    call kertolasku             # Kutsutaan kertolaskua
+    halt                        # Lopetetaan ohjelma
+    
+# r10 = tulos
+kertolasku:  
+    # Tarkistetaan onko r12 arvo 0, voimme käyttää mitä tahansa rekisteriä paitsi 
+    # r10, r13 ja pino rekistereitä
+    cmove %r12, %r9             # Tarkistetaan onko r12 = 0
+    je lopetus                  # Jos r12 = 0, niin hypätään lopetukseen
+    
+    addq %r13, %r10             # Lisätään tulokseen arvo
+    subq %r8, %r12              # Vähennetään r12 arvoa yhdellä
+    jmp kertolasku              # Hypätään takaisin kertolasku aliohjelman alkuun
+
+lopetus:
+    ret                         # Lopetus hyppää takaisin pääohjelmaan
+.pos 0x700
+    pino:
