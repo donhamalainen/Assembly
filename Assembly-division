@@ -1,0 +1,39 @@
+# Y86 Assembly -kieltä käyttäen toteutettu 64-bittinen jakolasku
+# Oulun yliopiston tietokonejärjestelmät 2023 -kurssin projektityö
+
+# Kirjoittaja: Don Hämäläinen
+
+.pos 0
+    irmovq pino,%r11            # muistipaikka 0x700
+    irmovq $26,%r12             # 20
+    rmmovq %r12,(%r11)
+main:
+    # Pino alustus
+    irmovq 0x700,%rsp           # Pino-osoitin
+    irmovq 0x700,%rbp           # Pino alkuosoite
+    
+    # Alustetaan jakolasku laskenta
+    popq %r12                   # Otetaan päällimmäinen pino arvo rekisteriin r12
+    rrmovq %r12, %r13           # rrmovq-käskyllä kopioidaan r12 rekisterin tietoa r13 teksiteriin
+    irmovq $0, %r10             # Alustetaan tulos rekisteri r10 nollaksi
+    irmovq $1, %r8              # Vakio 1.
+    irmovq $2, %rdi             # Vakio 2.
+    call jakolasku              # Kutsutaan jakolaskua
+    halt                        # Lopetetaan ohjelma
+    
+# r10 = tulos
+jakolasku:  
+    # Tarkistetaan onko r12 arvo 0, voimme käyttää mitä tahansa rekisteriä paitsi 
+    # r10, r13, r8 ja pino rekistereitä
+    cmove %r9, %r12             # Tarkistetaan onko r12 = 0
+    je lopetus                  # Jos r12 = 0, niin hypätään lopetukseen
+    
+    addq %r8, %r10              # Lisätään tulosta yhdellä
+    subq %rdi, %r12             # Vähennetään r12 arvoa kahdella
+    jmp jakolasku               # Hypätään takaisin kertolasku aliohjelman alkuun
+
+lopetus:
+    ret                         # Lopetus hyppää takaisin pääohjelmaan
+.pos 0x700
+    pino:
+
